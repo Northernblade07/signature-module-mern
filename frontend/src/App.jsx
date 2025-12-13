@@ -3,16 +3,21 @@ import Editor from "./pages/Editor";
 
 const App = () => {
   return (
-   <div className="min-h-screen">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-semibold text-slate-800">Signature Injection Engine — Prototype</h1>
-          <p className="text-sm text-slate-500 mt-1">Drag/drop fields on a rendered PDF, capture signature, and burn into PDF with audit hashes.</p>
+   <div className="min-h-screen bg-slate-950 text-slate-50">
+      <header className="border-b border-slate-800 bg-gradient-to-r from-sky-600/20 via-sky-500/10 to-fuchsia-500/10">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-5">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-50">
+            Signature Injection Engine
+          </h1>
+          <p className="max-w-2xl text-sm text-slate-300">
+            Upload a PDF, drag & drop fields, capture a signature, and burn it into the document with an audit trail.
+          </p>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6">
         <Editor />
+      
       </main>
     </div>
   )

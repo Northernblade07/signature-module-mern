@@ -1,136 +1,204 @@
-import React, { useRef, useState, forwardRef, useImperativeHandle, useEffect } from "react";
+import React, {
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+  useEffect,
+} from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { Rnd } from "react-rnd";
 import FieldOverlay from "./FieldOverlay";
+import Loader from "./Loader";
 import { pagePixelsToPdfPoints } from "../utils/coordinate";
+import { toast } from "react-toastify";
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
+const VIEWER_WIDTH = 720;
+
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 const PDFViewerCanvas = forwardRef(function PDFViewerCanvas(
-  { pdfUrl, selectedFieldType, onCoordinatesReady },
+  { pdfUrl, onCoordinatesReady, pdfId },
   ref
 ) {
-  const [numPages, setNumPages] = useState(null);
   const [pagePts, setPagePts] = useState(null);
-  const [renderedSize, setRenderedSize] = useState(null); 
+  const [renderedSize, setRenderedSize] = useState(null);
   const [boxes, setBoxes] = useState([]);
-  const containerRef = useRef();
-  const pageWrapperRef = useRef();
 
-  useImperativeHandle(ref, () => ({
-    getBoxes: () => boxes
-  }));
+  const containerRef = useRef(null);
+  const pageWrapperRef = useRef(null);
 
-  function onDocumentLoadSuccess(doc) {
-    setNumPages(doc.numPages);
-  }
+  // useImperativeHandle(ref, () => ({
+  //   getBoxes: () => boxes,
+  // }));
 
-  async function onPageLoadSuccess(page) {
-    // page is pdfjs page.
-    const viewport = page.getViewport({ scale: 1.0 });
-    setPagePts({ widthPts: viewport.width, heightPts: viewport.height });
+  function onPageLoadSuccess(page) {
+    const viewport = page.getViewport({ scale: 1 });
+    setPagePts({
+      widthPts: viewport.width,
+      heightPts: viewport.height,
+    });
 
-    // set rendered size after DOM paints
     requestAnimationFrame(() => {
-      const node = pageWrapperRef.current?.querySelector(".react-pdf__Page");
-      if (node) {
-        const rect = node.getBoundingClientRect();
-        setRenderedSize({ widthPx: rect.width, heightPx: rect.height });
-      }
+      const node =
+        pageWrapperRef.current?.querySelector(".react-pdf__Page");
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      setRenderedSize({
+        widthPx: rect.width,
+        heightPx: rect.height,
+      });
     });
   }
 
-  // Add a default box when selectedFieldType changes
+  // Reset when PDF changes
   useEffect(() => {
-    if (!selectedFieldType || !renderedSize) return;
-    const id = Date.now();
-    setBoxes((prev) => [
-      ...prev,
-      {
-        id,
-        fieldType: selectedFieldType,
-        x: Math.max(12, renderedSize.width * 0.05),
-        y: Math.max(12, renderedSize.height * 0.05),
-        width: Math.min(220, renderedSize.width * 0.4),
-        height: 60,
-        page: 1
-      }
-    ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFieldType]);
+    async function name() {
+      setBoxes([]);
+      setRenderedSize(null);
+      setPagePts(null);
+    }
+    name();
+  }, [pdfId, pdfUrl]);
+
+ function addSignatureBox() {
+  if (!renderedSize) {
+    toast.error("PDF not ready yet");
+    return;
+  }
+
+  setBoxes((prev) => [
+    ...prev,
+    {
+      id: Date.now(),
+      fieldType: "Signature",
+      x: Math.max(12, renderedSize.widthPx * 0.05),
+      y: Math.max(12, renderedSize.heightPx * 0.05),
+      width: Math.min(220, renderedSize.widthPx * 0.4),
+      height: 60,
+      page: 1,
+    },
+  ]);
+}
+
+useImperativeHandle(ref, () => ({
+  getBoxes: () => boxes,
+  addSignatureBox,
+}));
+
+
 
   function updateBox(id, patch) {
-    setBoxes((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    setBoxes((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, ...patch } : b))
+    );
   }
 
   function removeBox(id) {
     setBoxes((prev) => prev.filter((b) => b.id !== id));
   }
 
+  function remeasure() {
+    const node =
+      pageWrapperRef.current?.querySelector(".react-pdf__Page");
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    setRenderedSize({
+      widthPx: rect.width,
+      heightPx: rect.height,
+    });
+  }
+
   function prepareCoordinatesAndSend() {
     if (!renderedSize || !pagePts) {
-      alert("Page not ready yet. Wait for the PDF to render.");
+      toast.error("PDF is still rendering. Please wait a moment.");
       return;
     }
-    // convert boxes measured in pixels to PDF points
+    if (!boxes.length) {
+      toast.info("Add at least one field on the PDF before signing.");
+      return;
+    }
     const converted = boxes.map((b) => {
-      const boxPx = { x: b.x, y: b.y, width: b.width, height: b.height };
-      const conv = pagePixelsToPdfPoints(boxPx, renderedSize, pagePts);
+      const conv = pagePixelsToPdfPoints(
+        { x: b.x, y: b.y, width: b.width, height: b.height },
+        renderedSize,
+        pagePts
+      );
       return { page: b.page || 1, ...conv, fieldType: b.fieldType };
     });
 
-    if (onCoordinatesReady) {
-      onCoordinatesReady({
-        pdfId: pdfUrl.split("/").pop(), // send a simple id (filename) - adjust per your backend
-        page: 1,
-        boxes: converted
-      });
-    }
+    toast.success("Fields locked. Processing signature…");
+
+    onCoordinatesReady?.({
+      pdfId: pdfId || pdfUrl.split("/").pop(),
+      page: 1,
+      boxes: converted,
+    });
   }
 
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-5">
       <div className="flex-1">
-        <div className="flex items-center gap-3 mb-3">
+        <div className="mb-3 flex items-center gap-3">
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                // re-measure sizes (useful after viewport change)
-                const node = pageWrapperRef.current?.querySelector(".react-pdf__Page");
-                if (node) {
-                  const rect = node.getBoundingClientRect();
-                  setRenderedSize({ widthPx: rect.width, heightPx: rect.height });
-                }
-              }}
-              className="px-3 py-1 rounded bg-white border"
+              onClick={remeasure}
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-100 hover:border-sky-500 hover:text-sky-300"
             >
               Re-measure
             </button>
             <button
               onClick={prepareCoordinatesAndSend}
-              className="px-3 py-1 rounded bg-blue-600 text-white"
+              className="rounded-lg bg-gradient-to-r from-sky-500 to-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-sky-400 hover:to-fuchsia-400"
             >
-              Sign & Burn
+              Sign &amp; Burn
             </button>
           </div>
 
-          <div className="ml-auto text-sm text-slate-600">
-            Rendered: {renderedSize ? `${Math.round(renderedSize.widthPx)}×${Math.round(renderedSize.heightPx)} px` : "waiting..."} · PDF pts: {pagePts ? `${Math.round(pagePts.widthPts)}×${Math.round(pagePts.heightPts)}` : "waiting..."}
+          <div className="ml-auto text-xs text-slate-400">
+            Rendered:{" "}
+            {renderedSize
+              ? `${Math.round(renderedSize.widthPx)}×${Math.round(
+                renderedSize.heightPx
+              )} px`
+              : "waiting…"}{" "}
+            · PDF pts:{" "}
+            {pagePts
+              ? `${Math.round(pagePts.widthPts)}×${Math.round(
+                pagePts.heightPts
+              )}`
+              : "waiting…"}
           </div>
         </div>
 
-        <div ref={containerRef} className="relative inline-block border bg-white">
+        <div
+          ref={containerRef}
+          className="relative inline-block overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 shadow-lg"
+        >
           <div ref={pageWrapperRef}>
-            <Document
-              file={pdfUrl}
-              onLoadSuccess={onDocumentLoadSuccess}
-              loading={<div className="w-[842px] h-[1189px] flex items-center justify-center">Loading PDF…</div>}
-            >
-              <Page pageNumber={1} onLoadSuccess={onPageLoadSuccess} renderMode="canvas" />
-            </Document>
+            {pdfUrl && (
+              <Document
+                file={pdfUrl}
+                loading={<Loader label="Rendering PDF…" />}
+              // error={
+              //   <div className="flex items-center justify-center p-10 text-sm text-red-300">
+              //     Failed to load PDF. Check the URL or upload again.
+              //   </div>
+              // }
+              >
+                <Page
+                  pageNumber={1}
+                  renderMode="canvas"
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  width={700}
+                  onLoadSuccess={onPageLoadSuccess}
+                />
+
+              </Document>
+            )}
           </div>
 
-          {/* overlays */}
           {renderedSize &&
             boxes.map((b) => (
               <Rnd
@@ -138,25 +206,31 @@ const PDFViewerCanvas = forwardRef(function PDFViewerCanvas(
                 bounds="parent"
                 size={{ width: b.width, height: b.height }}
                 position={{ x: b.x, y: b.y }}
-                onDragStop={(e, d) => updateBox(b.id, { x: d.x, y: d.y })}
-                onResizeStop={(e, dir, ref, delta, pos) =>
+                onDragStop={(_e, d) =>
+                  updateBox(b.id, { x: d.x, y: d.y })
+                }
+                onResizeStop={(_e, _dir, ref, _delta, pos) =>
                   updateBox(b.id, {
                     width: parseFloat(ref.style.width),
                     height: parseFloat(ref.style.height),
                     x: pos.x,
-                    y: pos.y
+                    y: pos.y,
                   })
                 }
                 style={{
-                  border: "2px dashed rgba(14,165,233,0.95)",
-                  background: "rgba(14,165,233,0.035)",
-                  zIndex: 20,
+                  border: "2px dashed rgba(56,189,248,0.95)",
+                  background: "rgba(8,47,73,0.7)",
+                  borderRadius: 10,
                   padding: 6,
+                  zIndex: 20,
                 }}
               >
-                <div className="w-full h-full flex flex-col">
-                  <FieldOverlay label={b.fieldType} onRemove={() => removeBox(b.id)} />
-                  <div className="flex-1 flex items-center justify-center text-xs text-slate-500">
+                <div className="flex h-full flex-col">
+                  <FieldOverlay
+                    label={b.fieldType}
+                    onRemove={() => removeBox(b.id)}
+                  />
+                  <div className="flex flex-1 items-center justify-center text-xs text-slate-200">
                     {b.fieldType === "Signature" ? "Sign here" : b.fieldType}
                   </div>
                 </div>
@@ -165,29 +239,33 @@ const PDFViewerCanvas = forwardRef(function PDFViewerCanvas(
         </div>
       </div>
 
-      <aside className="w-80">
-        <div className="bg-white p-3 rounded shadow-sm">
-          <h4 className="font-medium">Fields</h4>
-          <p className="text-sm text-slate-500 mb-3">Click a field in the left toolbar to add it to the PDF (resizable + draggable).</p>
+      <aside className="w-92">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 shadow ">
+          <h4 className="mb-2 text-m font-semibold text-slate-100">Fields</h4>
+          <p className="mb-3 text-sm text-slate-400">
+            Click a field to add it to the current page. Drag &amp; resize to
+            position exactly.
+          </p>
           <div className="grid gap-2">
-            {["TextBox", "Signature", "Image", "Date", "Radio"].map((f) => (
-              <div key={f}>
-                <button
-                  className="w-full text-left px-3 py-2 rounded border hover:bg-slate-50"
-                  onClick={() => {
-                    // parent will control selection; setSelectedFieldType is in Editor
-                    const evt = new CustomEvent("selectFieldType", { detail: f });
-                    window.dispatchEvent(evt);
-                  }}
-                >
-                  {f}
-                </button>
-              </div>
+            {["Signature"].map((f) => (
+              <button
+  className="w-full rounded-lg border mt-1 border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm font-medium text-slate-100 hover:border-sky-500 hover:bg-slate-800"
+  onClick={() => {
+    ref?.current?.addSignatureBox(f);
+  }}
+>
+  Signature
+</button>
             ))}
           </div>
 
-          <div className="mt-4 text-sm text-slate-600">
-            <div>Tip: After adding a Signature field, open the Signature Pad to save a signature image, then press <strong>Sign & Burn</strong>.</div>
+          <div className="mt-4 text-xs text-slate-400">
+            Tip: For signatures, place the field where you want the final
+            signature to appear, then hit{" "}
+            <span className="font-semibold text-sky-300">
+              Sign &amp; Burn
+            </span>
+            .
           </div>
         </div>
       </aside>
