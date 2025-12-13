@@ -2,8 +2,7 @@
 import React, { useState } from "react";
 import { motion as Motion } from "framer-motion";
 import { toast } from "react-toastify";
-
-const BACKEND_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+import api from "../utils/api";
 
 export default function PdfUpload({ onUploaded, currentName }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -23,19 +22,16 @@ export default function PdfUpload({ onUploaded, currentName }) {
       const form = new FormData();
       form.append("pdf", file);
 
-      const res = await fetch(`${BACKEND_BASE}/upload-pdf`, {
-        method: "POST",
-        body: form,
-      });
+       const res = await api.post("/upload-pdf", form);
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = res.data;
+      if (!data?.success) {
         throw new Error(data?.error?.message || "Upload failed");
       }
       toast.success("PDF uploaded successfully");
       onUploaded({
         pdfId: data.pdfId,
-        pdfUrl: `${BACKEND_BASE}${data.url}`,
+        pdfUrl: data.url,
         originalName: data.originalName,
       });
     } catch (err) {

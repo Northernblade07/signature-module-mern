@@ -3,10 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 import PDFViewerCanvas from "../components/PDFViewerCanvas";
 import SignaturePadModal from "../components/SignaturePadModal";
 import PdfUpload from "../components/PdfUpload";
-import axios from "axios";
 import { toast } from "react-toastify";
+import api from "../utils/api";
 
-const BACKEND_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 export default function Editor() {
   const viewerRef = useRef();
@@ -15,9 +14,7 @@ export default function Editor() {
   const [signatureBase64, setSignatureBase64] = useState(null);
 
   const [pdfId, setPdfId] = useState("sample-a4.pdf");
-  const [pdfUrl, setPdfUrl] = useState(
-    `${BACKEND_BASE}/uploads/sample-a4.pdf`
-  );
+  const [pdfUrl, setPdfUrl] = useState("/uploads/sample-a4.pdf");
   const [pdfName, setPdfName] = useState("sample-a4.pdf");
 
   useEffect(() => {
@@ -43,12 +40,13 @@ export default function Editor() {
         coordinates: payload.boxes,
       };
 
-      const res = await axios.post(`${BACKEND_BASE}/sign-pdf`, body, {
+      const res = await api.post(`/sign-pdf`, body, {
         headers: { "Content-Type": "application/json" },
       });
 
       if (res.data?.url) {
-  const signedUrl = `${BACKEND_BASE}${res.data.url}`;
+  const signedUrl = res.data.url;
+window.open(signedUrl, "_blank");
   toast.success("Signed PDF created successfully");
   window.open(signedUrl, "_blank");
 } else {

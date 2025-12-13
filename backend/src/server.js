@@ -12,9 +12,10 @@ import { connectDb } from "./lib/db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const _dirname = path.resolve();
 
 const app = express();
-
+app.use(express.json());
 // CORS: in prod, restrict origin to your frontend URL
 app.use(
   cors({
@@ -50,6 +51,18 @@ app.use("/", pdfRoutes);
 
 // Start server only after DB connect attempt
 const PORT = process.env.PORT || 4000;
+
+
+
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(_dirname,'../frontend/dist')))
+
+    app.get("*",(req,res)=>{
+        res.sendFile(path.join(_dirname,"../frontend","dist","index.html"))
+    })
+    
+}
+
 
 async function start() {
   try {
