@@ -41,14 +41,14 @@ const SignaturePadModal = ({ onClose, onSave }) => {
         <div className="mt-4 flex justify-end gap-3">
           <button
             onClick={clear}
-            className="rounded bg-gray-100 px-4 py-2 hover:bg-gray-200"
+            className="rounded bg-gray-600 px-4 py-2 hover:bg-gray-200"
           >
             Clear
           </button>
 
           <button
             onClick={onClose}
-            className="rounded bg-gray-100 px-4 py-2 hover:bg-gray-200"
+            className="rounded bg-red-400 px-4 py-2 hover:bg-gray-200"
           >
             Cancel
           </button>
