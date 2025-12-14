@@ -12,8 +12,7 @@ import Loader from "./Loader";
 import { pagePixelsToPdfPoints } from "../utils/coordinate";
 import { toast } from "react-toastify";
 
-
-const VIEWER_WIDTH = 720;
+const VIEWER_MAX_WIDTH = 720;
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
@@ -24,13 +23,27 @@ const PDFViewerCanvas = forwardRef(function PDFViewerCanvas(
   const [pagePts, setPagePts] = useState(null);
   const [renderedSize, setRenderedSize] = useState(null);
   const [boxes, setBoxes] = useState([]);
+  const [containerWidth, setContainerWidth] = useState(VIEWER_MAX_WIDTH);
 
   const containerRef = useRef(null);
   const pageWrapperRef = useRef(null);
 
-  // useImperativeHandle(ref, () => ({
-  //   getBoxes: () => boxes,
-  // }));
+  function measureContainer() {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setContainerWidth(rect.width);
+  }
+
+  function measureRenderedSize() {
+    const node =
+      pageWrapperRef.current?.querySelector(".react-pdf__Page canvas");
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    setRenderedSize({
+      widthPx: rect.width,
+      heightPx: rect.height,
+    });
+  }
 
   function onPageLoadSuccess(page) {
     const viewport = page.getViewport({ scale: 1 });
@@ -39,19 +52,9 @@ const PDFViewerCanvas = forwardRef(function PDFViewerCanvas(
       heightPts: viewport.height,
     });
 
-    requestAnimationFrame(() => {
-      const node =
-        pageWrapperRef.current?.querySelector(".react-pdf__Page");
-      if (!node) return;
-      const rect = node.getBoundingClientRect();
-      setRenderedSize({
-        widthPx: rect.width,
-        heightPx: rect.height,
-      });
-    });
+    requestAnimationFrame(measureRenderedSize);
   }
-
-  // Reset when PDF changes
+ // Reset when PDF changes
   useEffect(() => {
     async function name() {
       setBoxes([]);
@@ -61,32 +64,42 @@ const PDFViewerCanvas = forwardRef(function PDFViewerCanvas(
     name();
   }, [pdfId, pdfUrl]);
 
- function addSignatureBox() {
-  if (!renderedSize) {
-    toast.error("PDF not ready yet");
-    return;
+  // Measure container on mount + resize
+  useEffect(() => {
+    measureContainer();
+    const onResize = () => {
+      measureContainer();
+      // after resize, re-measure page canvas size
+      requestAnimationFrame(measureRenderedSize);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  function addSignatureBox() {
+    if (!renderedSize) {
+      toast.error("PDF not ready yet");
+      return;
+    }
+
+    setBoxes((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        fieldType: "Signature",
+        x: Math.max(12, renderedSize.widthPx * 0.05),
+        y: Math.max(12, renderedSize.heightPx * 0.05),
+        width: Math.min(220, renderedSize.widthPx * 0.4),
+        height: 60,
+        page: 1,
+      },
+    ]);
   }
 
-  setBoxes((prev) => [
-    ...prev,
-    {
-      id: Date.now(),
-      fieldType: "Signature",
-      x: Math.max(12, renderedSize.widthPx * 0.05),
-      y: Math.max(12, renderedSize.heightPx * 0.05),
-      width: Math.min(220, renderedSize.widthPx * 0.4),
-      height: 60,
-      page: 1,
-    },
-  ]);
-}
-
-useImperativeHandle(ref, () => ({
-  getBoxes: () => boxes,
-  addSignatureBox,
-}));
-
-
+  useImperativeHandle(ref, () => ({
+    getBoxes: () => boxes,
+    addSignatureBox,
+  }));
 
   function updateBox(id, patch) {
     setBoxes((prev) =>
@@ -99,14 +112,8 @@ useImperativeHandle(ref, () => ({
   }
 
   function remeasure() {
-    const node =
-      pageWrapperRef.current?.querySelector(".react-pdf__Page");
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    setRenderedSize({
-      widthPx: rect.width,
-      heightPx: rect.height,
-    });
+    measureRenderedSize();
+    toast.info("Re-measured PDF dimensions");
   }
 
   function prepareCoordinatesAndSend() {
@@ -136,10 +143,30 @@ useImperativeHandle(ref, () => ({
     });
   }
 
+  function getResponsivePageWidth(w) {
+  if (!w) return VIEWER_MAX_WIDTH;
+
+  // Mobile
+  if (w < 640) {
+    return Math.floor(w * 0.95); // prevents trimming
+  }
+
+  // Tablet
+  if (w < 1024) {
+    return Math.min(w * 0.9, VIEWER_MAX_WIDTH);
+  }
+
+  // Desktop
+  return VIEWER_MAX_WIDTH;
+}
+
+const pageWidth = getResponsivePageWidth(containerWidth);
+
+
   return (
-    <div className="flex gap-5">
-      <div className="flex-1">
-        <div className="mb-3 flex items-center gap-3">
+    <div className="flex flex-col gap-5 lg:flex-row">
+      <div className="w-full lg:flex-1">
+        <div className="mb-3 flex flex-wrap items-center gap-3">
           <div className="flex gap-2">
             <button
               onClick={remeasure}
@@ -159,42 +186,38 @@ useImperativeHandle(ref, () => ({
             Rendered:{" "}
             {renderedSize
               ? `${Math.round(renderedSize.widthPx)}×${Math.round(
-                renderedSize.heightPx
-              )} px`
+                  renderedSize.heightPx
+                )} px`
               : "waiting…"}{" "}
             · PDF pts:{" "}
             {pagePts
               ? `${Math.round(pagePts.widthPts)}×${Math.round(
-                pagePts.heightPts
-              )}`
+                  pagePts.heightPts
+                )}`
               : "waiting…"}
           </div>
         </div>
 
         <div
           ref={containerRef}
-          className="relative inline-block overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 shadow-lg"
+          className="relative inline-block sm:max-w-full overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/80 shadow-lg"
         >
-          <div ref={pageWrapperRef}>
+          <div ref={pageWrapperRef} className="sm:max-w-full max-w-116">
             {pdfUrl && (
               <Document
                 file={pdfUrl}
+                className={`w-[${pageWidth}]`}
                 loading={<Loader label="Rendering PDF…" />}
-              // error={
-              //   <div className="flex items-center justify-center p-10 text-sm text-red-300">
-              //     Failed to load PDF. Check the URL or upload again.
-              //   </div>
-              // }
               >
                 <Page
+                  // key={pageWidth}
                   pageNumber={1}
                   renderMode="canvas"
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
-                  width={700}
+                  width={null}
                   onLoadSuccess={onPageLoadSuccess}
                 />
-
               </Document>
             )}
           </div>
@@ -206,13 +229,23 @@ useImperativeHandle(ref, () => ({
                 bounds="parent"
                 size={{ width: b.width, height: b.height }}
                 position={{ x: b.x, y: b.y }}
+                enableResizing={{
+                  top: true,
+                  right: true,
+                  bottom: true,
+                  left: true,
+                  topRight: true,
+                  bottomRight: true,
+                  bottomLeft: true,
+                  topLeft: true,
+                }}
                 onDragStop={(_e, d) =>
                   updateBox(b.id, { x: d.x, y: d.y })
                 }
-                onResizeStop={(_e, _dir, ref, _delta, pos) =>
+                onResizeStop={(_e, _dir, refEl, _delta, pos) =>
                   updateBox(b.id, {
-                    width: parseFloat(ref.style.width),
-                    height: parseFloat(ref.style.height),
+                    width: parseFloat(refEl.style.width),
+                    height: parseFloat(refEl.style.height),
                     x: pos.x,
                     y: pos.y,
                   })
@@ -239,24 +272,22 @@ useImperativeHandle(ref, () => ({
         </div>
       </div>
 
-      <aside className="w-92">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 shadow ">
-          <h4 className="mb-2 text-m font-semibold text-slate-100">Fields</h4>
+      <aside className="w-full lg:w-75">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 shadow">
+          <h4 className="mb-2 text-base font-semibold text-slate-100">
+            Fields
+          </h4>
           <p className="mb-3 text-sm text-slate-400">
             Click a field to add it to the current page. Drag &amp; resize to
             position exactly.
           </p>
           <div className="grid gap-2">
-            {["Signature"].map((f) => (
-              <button
-  className="w-full rounded-lg border mt-1 border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm font-medium text-slate-100 hover:border-sky-500 hover:bg-slate-800"
-  onClick={() => {
-    ref?.current?.addSignatureBox(f);
-  }}
->
-  Signature
-</button>
-            ))}
+            <button
+              className="w-full rounded-lg border mt-1 border-slate-700 bg-slate-900 px-3 py-2 text-left text-sm font-medium text-slate-100 hover:border-sky-500 hover:bg-slate-800"
+              onClick={addSignatureBox}
+            >
+              Signature
+            </button>
           </div>
 
           <div className="mt-4 text-xs text-slate-400">

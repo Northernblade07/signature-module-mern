@@ -27,18 +27,25 @@ const SignaturePadModal = ({ onClose, onSave }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-11/12 max-w-2xl rounded-xl bg-white p-6 shadow-xl">
-        <h3 className="mb-3 text-lg font-medium">Draw your signature</h3>
+   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-2">
+  <div className="w-full max-w-2xl rounded-xl bg-white p-4 sm:p-6 shadow-xl">
+    <h3 className="mb-3 text-base sm:text-lg font-medium">
+      Draw your signature
+    </h3>
 
-        <div className="rounded-md border p-2">
-          <SignaturePad
-            ref={sigRef}
-            canvasProps={{ className: "sigCanvas", width: 800, height: 200 }}
-          />
-        </div>
+        <div className="rounded-md border p-2 overflow-x-auto">
+      <SignaturePad
+        ref={sigRef}
+        canvasProps={{
+          className: "sigCanvas",
+          width: 800,
+          height: 200,
+        }}
+      />
+    </div>
 
-        <div className="mt-4 flex justify-end gap-3">
+
+        <div className="mt-4 flex justify-end gap-3  flex-wrap sm:gap-4">
           <button
             onClick={clear}
             className="rounded bg-gray-600 px-4 py-2 hover:bg-gray-200"

@@ -68,13 +68,13 @@ window.open(signedUrl, "_blank");
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
+   <div className="space-y-5">
+      <div className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4 sm:flex-row sm:items-center">
         <PdfUpload onUploaded={handleUploaded} currentName={pdfName} />
 
-        <div className="ml-auto flex flex-col items-end gap-2 text-xs text-slate-300">
+        <div className="flex w-full flex-col gap-2 text-xs text-slate-300 sm:ml-auto sm:w-auto sm:items-end">
           <button
-            className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow hover:bg-sky-400"
+            className="rounded-lg bg-sky-500 px-3 py-1.5 text-s font-semibold text-slate-900 shadow hover:bg-sky-400"
             onClick={() => setShowSigModal(true)}
           >
             Open Signature Pad
@@ -92,24 +92,28 @@ window.open(signedUrl, "_blank");
         </div>
       </div>
 
+            <div className="w-full overflow-x-auto">
+
       <PDFViewerCanvas
         ref={viewerRef}
         pdfUrl={pdfUrl}
         pdfId={pdfId}
         selectedFieldType={selected}
         onCoordinatesReady={handleCoordinatesReady}
-      />
+        />
+        
+        </div>
 
       {showSigModal && (
         <SignaturePadModal
           onClose={() => setShowSigModal(false)}
-       onSave={(base64) => {
-  setSignatureBase64(base64);
-  setShowSigModal(false);
-  toast.success(
-    "Signature saved. Place a Signature field and press Sign & Burn."
-  );
-}}
+          onSave={(base64) => {
+            setSignatureBase64(base64);
+            setShowSigModal(false);
+            toast.success(
+              "Signature saved. Place a Signature field and press Sign & Burn."
+            );
+          }}
         />
       )}
     </div>

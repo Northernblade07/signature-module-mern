@@ -3,7 +3,7 @@ import React from "react";
 export default function FieldOverlay({ label, onRemove }) {
   return (
     <div className="flex items-center justify-between text-xs text-slate-700 w-full">
-      <div className="px-1">{label}</div>
+      <div className="px-1 text-white">{label}</div>
       <div>
         <button
           onClick={onRemove}
