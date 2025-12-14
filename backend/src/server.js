@@ -8,6 +8,8 @@ import dotenv from "dotenv";
 dotenv.config();
 import pdfRoutes from "./routes/pdf.route.js";
 import { connectDb } from "./lib/db.js";
+import fs from "fs";
+import { generateSamplePdfIfMissing } from "./utils/generateSamplePdf.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -69,6 +71,15 @@ async function start() {
     console.log("MONGO_URI:", process.env.MONGO_URI);
     await connectDb();
     console.log("MongoDB connected");
+    const uploadsDir = path.join(__dirname, "uploads");
+
+// ensure uploads dir exists
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// generate sample pdf
+await generateSamplePdfIfMissing(uploadsDir);
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

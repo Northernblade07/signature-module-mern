@@ -13,9 +13,9 @@ export default function Editor() {
   const [showSigModal, setShowSigModal] = useState(false);
   const [signatureBase64, setSignatureBase64] = useState(null);
 
-  const [pdfId, setPdfId] = useState("sample-a4.pdf");
-  const [pdfUrl, setPdfUrl] = useState("/uploads/sample-a4.pdf");
-  const [pdfName, setPdfName] = useState("sample-a4.pdf");
+  const [pdfId, setPdfId] = useState("sample.pdf");
+  const [pdfUrl, setPdfUrl] = useState("/uploads/sample.pdf");
+  const [pdfName, setPdfName] = useState("sample.pdf");
 
   useEffect(() => {
     function handler(e) {
